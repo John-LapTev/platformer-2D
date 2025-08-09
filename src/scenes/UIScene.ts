@@ -706,7 +706,7 @@ export class UIScene extends Phaser.Scene {
             delay: 1000,
             callback: () => {
                 timeLeft--;
-                if (timeLeft > 0) {
+                if (timeLeft > 0 && timerText && timerText.active) {
                     timerText.setText(`${timeLeft}s`);
                 } else {
                     // Анимация исчезновения

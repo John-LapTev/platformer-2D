@@ -83,11 +83,11 @@ export class PreloadScene extends Phaser.Scene {
 
     private loadAssets(): void {
         // Загружаем красивые AI-сгенерированные спрайты
-        this.load.image('hero-sprite', '/sprites/hero.png');
+        this.load.image('hero-sprite', '/sprites/hero.png'); // Рик Санчез PNG с прозрачным фоном
         this.load.image('background-forest', '/sprites/background-forest.png'); // Фон для главного меню
         this.load.image('background-panorama', '/sprites/background_panorama_optimized.jpg');
-        this.load.image('platform-texture', '/sprites/platform.png');
-        this.load.image('enemy-sprite', '/sprites/enemy.png');
+        this.load.image('platform-texture', '/sprites/platform.jpg');
+        this.load.image('enemy-sprite', '/sprites/enemy.jpg');
         
         // Генерируем дополнительные спрайты программно
         this.generateSprites();

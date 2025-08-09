@@ -7,6 +7,7 @@ export class SoundSystem {
     private sfxVolume: number = 0.4;    // 40% по умолчанию
     private isMuted: boolean = false;
     private currentMusic: Phaser.Sound.BaseSound | null = null;
+    private individualVolumes: Map<string, number> = new Map();
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
@@ -14,92 +15,80 @@ export class SoundSystem {
     }
 
     private loadSettings(): void {
+        // Загружаем настройки из localStorage
         const settings = localStorage.getItem('soundSettings');
         if (settings) {
             const parsed = JSON.parse(settings);
-            this.musicVolume = parsed.musicVolume ?? 0.2;  // 20% по умолчанию
+            this.musicVolume = parsed.musicVolume ?? 0.2;  // 20% по умолчанию  
             this.sfxVolume = parsed.sfxVolume ?? 0.4;      // 40% по умолчанию
             this.isMuted = parsed.isMuted ?? false;
+            
+            // Загружаем индивидуальные настройки звуков
+            if (parsed.individualVolumes) {
+                Object.entries(parsed.individualVolumes).forEach(([key, value]) => {
+                    this.individualVolumes.set(key, value as number);
+                });
+            }
+        }
+        
+        // Устанавливаем значения по умолчанию для индивидуальных звуков если их нет
+        this.initializeDefaultVolumes();
+    }
+    
+    private initializeDefaultVolumes(): void {
+        // Оптимально сбалансированные значения по умолчанию (0-100%)
+        const defaults = new Map([
+            // Звуки игрока
+            ['jump', 40],         // Прыжок - средне
+            ['land', 25],         // Приземление - тише
+            ['footstep', 15],     // Шаги - очень тихо
+            ['hurt', 60],         // Урон игрока - заметно
+            ['death', 70],        // Смерть игрока - громко
+            
+            // Звуки сбора
+            ['coin', 35],         // Монеты - приятно
+            ['powerup', 55],      // Усиления - заметно
+            
+            // Звуки врагов  
+            ['enemy_hurt', 45],   // Урон врага - средне
+            ['enemy_death', 50],  // Смерть врага - заметно
+            
+            // Звуки окружения
+            ['portal', 30],       // Портал - атмосферно
+            ['lava_bubble', 25]   // Лава - тихо
+        ]);
+        
+        defaults.forEach((value, key) => {
+            if (!this.individualVolumes.has(key)) {
+                this.individualVolumes.set(key, value);
+            }
+        });
+        
+        // Сохраняем если были добавлены новые значения
+        if (!localStorage.getItem('soundSettings')) {
+            this.musicVolume = 0.15;  // 15% - музыка тише
+            this.sfxVolume = 0.3;     // 30% - звуки умеренно
+            this.isMuted = false;
+            this.saveSettings();
         }
     }
 
     private saveSettings(): void {
+        // Конвертируем Map в объект для сохранения
+        const individualVolumesObj: { [key: string]: number } = {};
+        this.individualVolumes.forEach((value, key) => {
+            individualVolumesObj[key] = value;
+        });
+        
         localStorage.setItem('soundSettings', JSON.stringify({
             musicVolume: this.musicVolume,
             sfxVolume: this.sfxVolume,
-            isMuted: this.isMuted
+            isMuted: this.isMuted,
+            individualVolumes: individualVolumesObj
         }));
     }
 
-    public preloadSounds(): void {
-        // Звуки действий игрока
-        this.scene.load.audio('jump', [
-            '/sounds/jump.ogg',
-            '/sounds/jump.mp3'
-        ]);
-        this.scene.load.audio('land', [
-            '/sounds/land.ogg',
-            '/sounds/land.mp3'
-        ]);
-        this.scene.load.audio('footstep', [
-            '/sounds/footstep.ogg',
-            '/sounds/footstep.mp3'
-        ]);
-        
-        // Звуки сбора предметов
-        this.scene.load.audio('coin', [
-            '/sounds/coin.ogg',
-            '/sounds/coin.mp3'
-        ]);
-        this.scene.load.audio('powerup', [
-            '/sounds/powerup.ogg',
-            '/sounds/powerup.mp3'
-        ]);
-        
-        // Звуки урона и смерти
-        this.scene.load.audio('hurt', [
-            '/sounds/hurt.ogg',
-            '/sounds/hurt.mp3'
-        ]);
-        this.scene.load.audio('death', [
-            '/sounds/death.ogg',
-            '/sounds/death.mp3'
-        ]);
-        
-        // Звуки врагов
-        this.scene.load.audio('enemy_hurt', [
-            '/sounds/enemy_hurt.ogg',
-            '/sounds/enemy_hurt.mp3'
-        ]);
-        this.scene.load.audio('enemy_death', [
-            '/sounds/enemy_death.ogg',
-            '/sounds/enemy_death.mp3'
-        ]);
-        
-        // Звуки окружения
-        this.scene.load.audio('lava_bubble', [
-            '/sounds/lava_bubble.ogg',
-            '/sounds/lava_bubble.mp3'
-        ]);
-        this.scene.load.audio('portal', [
-            '/sounds/portal.ogg',
-            '/sounds/portal.mp3'
-        ]);
-        
-        // Музыка
-        this.scene.load.audio('level1_music', [
-            '/sounds/level1_music.ogg',
-            '/sounds/level1_music.mp3'
-        ]);
-        this.scene.load.audio('menu_music', [
-            '/sounds/menu_music.ogg',
-            '/sounds/menu_music.mp3'
-        ]);
-        this.scene.load.audio('boss_music', [
-            '/sounds/boss_music.ogg',
-            '/sounds/boss_music.mp3'
-        ]);
-    }
+    // Метод удалён - звуки загружаются в PreloadScene
 
     public createSounds(): void {
         // Создаём звуки и сохраняем их для повторного использования
@@ -115,23 +104,49 @@ export class SoundSystem {
                     volume: this.sfxVolume
                 });
                 this.sounds.set(key, sound);
+            } else {
+                console.warn(`SoundSystem: Звук "${key}" не найден в кэше!`);
             }
         });
     }
 
     public playSound(key: string, config?: Phaser.Types.Sound.SoundConfig): void {
+        // Проверяем и возобновляем Audio Context если нужно
+        this.ensureAudioContext();
+        
         if (this.isMuted) return;
+
+        // Получаем сбалансированную громкость для данного звука
+        const balancedVolume = this.getBalancedVolume(key, config?.volume);
+        const finalConfig = { ...config, volume: balancedVolume };
 
         const sound = this.sounds.get(key);
         if (sound) {
-            const volume = config?.volume ?? this.sfxVolume;
-            sound.play({ ...config, volume });
+            sound.play(finalConfig);
         } else if (this.scene.cache.audio.exists(key)) {
             // Если звук не был предзагружен, создаём его на лету
-            this.scene.sound.play(key, {
-                volume: this.sfxVolume,
-                ...config
-            });
+            this.scene.sound.play(key, finalConfig);
+        } else {
+            console.warn(`SoundSystem: Звук "${key}" не найден!`);
+        }
+    }
+    
+    private getBalancedVolume(soundKey: string, customVolume?: number): number {
+        // Если указана кастомная громкость, используем её
+        if (customVolume !== undefined) {
+            return customVolume * this.sfxVolume; // Применяем общий множитель
+        }
+        
+        // Получаем индивидуальную громкость для данного звука (0-100)
+        const individualVolume = this.individualVolumes.get(soundKey) ?? 50;
+        
+        // Конвертируем из процентов (0-100) в множитель (0-1) и применяем общую громкость
+        return (individualVolume / 100) * this.sfxVolume;
+    }
+    
+    private ensureAudioContext(): void {
+        if (this.scene.sound.context && (this.scene.sound.context as any).state === 'suspended') {
+            (this.scene.sound.context as any).resume();
         }
     }
 
@@ -197,6 +212,26 @@ export class SoundSystem {
 
     public getSfxVolume(): number {
         return this.sfxVolume;
+    }
+    
+    public setIndividualVolume(soundKey: string, volume: number): void {
+        // volume приходит в процентах (0-100)
+        this.individualVolumes.set(soundKey, Phaser.Math.Clamp(volume, 0, 100));
+        this.saveSettings();
+    }
+    
+    public getIndividualVolume(soundKey: string): number {
+        return this.individualVolumes.get(soundKey) ?? 50;
+    }
+    
+    public getAllIndividualVolumes(): Map<string, number> {
+        return new Map(this.individualVolumes);
+    }
+    
+    public resetIndividualVolumes(): void {
+        this.individualVolumes.clear();
+        this.initializeDefaultVolumes();
+        this.saveSettings();
     }
 
     public destroy(): void {

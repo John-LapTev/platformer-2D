@@ -33,16 +33,26 @@ export class Player {
         this.scene = scene;
         
         // Создаём спрайт с красивой графикой
-        // Используем hero-sprite если он загружен, иначе используем программно сгенерированный player
+        // Проверяем настройки и доступность AI-спрайта
         const textureKey = 'hero-sprite';
-        this.sprite = scene.physics.add.sprite(x, y, scene.textures.exists(textureKey) ? textureKey : 'player');
-        console.log('Player texture:', scene.textures.exists(textureKey) ? textureKey : 'player');
+        const aiSpriteExists = scene.textures.exists(textureKey);
+        const useAISetting = localStorage.getItem('useAISprites');
+        // Если настройка не установлена, по умолчанию используем СТАНДАРТНЫЙ (программный) спрайт
+        // Если настройка есть и равна 'true', используем AI спрайт
+        const useAISprite = useAISetting === 'true' && aiSpriteExists;
+        
+        this.sprite = scene.physics.add.sprite(x, y, useAISprite ? textureKey : 'player');
         this.sprite.setCollideWorldBounds(false);
         this.sprite.setBounce(0.1);
         this.sprite.setGravityY(0);
         this.sprite.setDragX(0); // Без сопротивления воздуха
         this.sprite.setMaxVelocity(400, 1000); // Очень быстрое падение
-        this.sprite.setScale(1.0); // Нормальный размер для HD текстур
+        
+        // Устанавливаем правильный масштаб в зависимости от спрайта
+        // Теперь оба спрайта одинакового размера 80x100 - используем одинаковые настройки
+        this.sprite.setScale(1.0);
+        this.sprite.setOrigin(0.5, 0.5); // Стандартный якорь по центру
+        
         
         // Настраиваем физику - хитбокс должен быть меньше спрайта для правильной коллизии
         const body = this.sprite.body as Phaser.Physics.Arcade.Body;
@@ -102,50 +112,77 @@ export class Player {
     }
 
     private createAnimations(): void {
+        // Используем AI-спрайт или программный в зависимости от НАСТРОЕК пользователя
+        const useAISetting = localStorage.getItem('useAISprites');
+        const aiSpriteExists = this.scene.textures.exists('hero-sprite');
+        const useAISprite = useAISetting === 'true' && aiSpriteExists;
+        const spriteKey = useAISprite ? 'hero-sprite' : 'player_idle';
+        
         // Проверяем существование анимаций
         if (!this.scene.anims.exists('idle')) {
             // Покой
             this.scene.anims.create({
                 key: 'idle',
-                frames: [{ key: 'player_idle', frame: 0 }],
+                frames: [{ key: spriteKey, frame: 0 }],
                 frameRate: 1,
                 repeat: -1
             });
         }
         
         if (!this.scene.anims.exists('idle_animation')) {
-            // Анимация бездействия (почёсывание, оглядывание)
-            this.scene.anims.create({
-                key: 'idle_animation',
-                frames: [
-                    { key: 'player_idle', frame: 0 },
-                    { key: 'player_jump', frame: 0 },  // Поднимает руки
-                    { key: 'player_idle', frame: 0 },
-                    { key: 'player_run1', frame: 0 }   // Оглядывается
-                ],
-                frameRate: 2,
-                repeat: 0
-            });
+            if (useAISprite) {
+                // Для AI-спрайта используем статичную анимацию
+                this.scene.anims.create({
+                    key: 'idle_animation',
+                    frames: [{ key: 'hero-sprite', frame: 0 }],
+                    frameRate: 1,
+                    repeat: 0
+                });
+            } else {
+                // Анимация бездействия (почёсывание, оглядывание)
+                this.scene.anims.create({
+                    key: 'idle_animation',
+                    frames: [
+                        { key: 'player_idle', frame: 0 },
+                        { key: 'player_jump', frame: 0 },  // Поднимает руки
+                        { key: 'player_idle', frame: 0 },
+                        { key: 'player_run1', frame: 0 }   // Оглядывается
+                    ],
+                    frameRate: 2,
+                    repeat: 0
+                });
+            }
         }
         
         if (!this.scene.anims.exists('run')) {
-            // Бег с движением рук и ног
-            this.scene.anims.create({
-                key: 'run',
-                frames: [
-                    { key: 'player_run1', frame: 0 },
-                    { key: 'player_run2', frame: 0 }
-                ],
-                frameRate: 10,
-                repeat: -1
-            });
+            if (useAISprite) {
+                // Для AI-спрайта используем статичную анимацию
+                this.scene.anims.create({
+                    key: 'run',
+                    frames: [{ key: 'hero-sprite', frame: 0 }],
+                    frameRate: 1,
+                    repeat: -1
+                });
+            } else {
+                // Бег с движением рук и ног
+                this.scene.anims.create({
+                    key: 'run',
+                    frames: [
+                        { key: 'player_run1', frame: 0 },
+                        { key: 'player_run2', frame: 0 }
+                    ],
+                    frameRate: 10,
+                    repeat: -1
+                });
+            }
         }
         
         if (!this.scene.anims.exists('jump')) {
             // Прыжок
+            const jumpKey = useAISprite ? 'hero-sprite' : 'player_jump';
             this.scene.anims.create({
                 key: 'jump',
-                frames: [{ key: 'player_jump', frame: 0 }],
+                frames: [{ key: jumpKey, frame: 0 }],
                 frameRate: 1
             });
         }
@@ -852,6 +889,50 @@ export class Player {
         if (!this.isInvincible) {
             this.sprite.clearTint();
         }
+    }
+    
+    public updateSprite(useAISprites: boolean): void {
+        // Проверяем, что спрайт существует и не уничтожен
+        if (!this.sprite || !this.sprite.scene) {
+            return;
+        }
+        
+        // Сохраняем текущие свойства спрайта
+        const currentX = this.sprite.x;
+        const currentY = this.sprite.y;
+        const currentScale = this.sprite.scale;
+        const currentFlipX = this.sprite.flipX;
+        const currentVelocity = this.sprite.body ? {
+            x: (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.x,
+            y: (this.sprite.body as Phaser.Physics.Arcade.Body).velocity.y
+        } : { x: 0, y: 0 };
+        
+        // Определяем новую текстуру
+        const textureKey = 'hero-sprite';
+        const aiSpriteExists = this.scene.textures.exists(textureKey);
+        const newTexture = (useAISprites && aiSpriteExists) ? textureKey : 'player';
+        
+        // Обновляем текстуру
+        this.sprite.setTexture(newTexture);
+        
+        // Восстанавливаем свойства
+        this.sprite.setPosition(currentX, currentY);
+        this.sprite.setScale(currentScale.x, currentScale.y);
+        this.sprite.setFlipX(currentFlipX);
+        
+        if (this.sprite.body) {
+            const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+            body.setVelocity(currentVelocity.x, currentVelocity.y);
+        }
+        
+        // Устанавливаем одинаковый масштаб для обоих спрайтов (как в конструкторе)
+        this.sprite.setScale(1.0);
+        
+        // Пересоздаём анимации для нового спрайта
+        this.createAnimations();
+        
+        // Восстанавливаем анимацию idle после смены спрайта
+        this.sprite.play('idle', true);
     }
     
     public destroy(): void {
