@@ -33,7 +33,10 @@ export class Player {
         this.scene = scene;
         
         // Создаём спрайт с красивой графикой
-        this.sprite = scene.physics.add.sprite(x, y, scene.textures.exists('hero-sprite') ? 'hero-sprite' : 'player');
+        // Используем hero-sprite если он загружен, иначе используем программно сгенерированный player
+        const textureKey = 'hero-sprite';
+        this.sprite = scene.physics.add.sprite(x, y, scene.textures.exists(textureKey) ? textureKey : 'player');
+        console.log('Player texture:', scene.textures.exists(textureKey) ? textureKey : 'player');
         this.sprite.setCollideWorldBounds(false);
         this.sprite.setBounce(0.1);
         this.sprite.setGravityY(0);

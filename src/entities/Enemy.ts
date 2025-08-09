@@ -27,8 +27,10 @@ export class Enemy {
         this.startX = x;
         
         // Создаём спрайт с AI-графикой
-        const textureKey = scene.textures.exists('enemy-sprite') ? 'enemy-sprite' : type;
+        const aiTextureKey = 'enemy-sprite';
+        const textureKey = scene.textures.exists(aiTextureKey) ? aiTextureKey : type;
         this.sprite = scene.physics.add.sprite(x, y, textureKey);
+        console.log('Enemy texture:', textureKey);
         this.sprite.setCollideWorldBounds(false); // Враги могут двигаться по всему уровню
         this.sprite.setBounce(0.1);
         this.sprite.setGravityY(0); // Убеждаемся что гравитация включена по умолчанию
