@@ -11,6 +11,15 @@ export class Enemy {
     private patrolDistance: number = 200;
     private startX: number;
     private isAlive: boolean = true;
+    public isEnemy: boolean = true; // Флаг для идентификации врага
+    
+    // AI состояния
+    private aiState: 'patrol' | 'chase' | 'attack' | 'return' = 'patrol';
+    private lastPlayerSeen: number = 0;
+    private memoryDuration: number = 2000; // Помнит игрока 2 секунды
+    private attackCooldown: number = 0;
+    private stuckCounter: number = 0;
+    private lastX: number = 0;
 
     constructor(scene: Phaser.Scene, x: number, y: number, type: string) {
         this.scene = scene;
@@ -20,7 +29,7 @@ export class Enemy {
         // Создаём спрайт с AI-графикой
         const textureKey = scene.textures.exists('enemy-sprite') ? 'enemy-sprite' : type;
         this.sprite = scene.physics.add.sprite(x, y, textureKey);
-        this.sprite.setCollideWorldBounds(false);
+        this.sprite.setCollideWorldBounds(false); // Враги могут двигаться по всему уровню
         this.sprite.setBounce(0.1);
         this.sprite.setGravityY(0); // Убеждаемся что гравитация включена по умолчанию
         
@@ -51,6 +60,9 @@ export class Enemy {
         
         // Начинаем патрулирование
         this.startPatrol();
+        
+        // Помечаем спрайт как врага для исключения из коллизий с опасностями
+        this.sprite.setData('isEnemy', true);
     }
 
     private setupPhysics(): void {
@@ -60,17 +72,17 @@ export class Enemy {
             case 'enemy1':
                 body.setSize(30, 30);
                 this.speed = GameConfig.ENEMY_SPEED;
-                this.patrolDistance = 150;
+                this.patrolDistance = 100; // Меньше для enemy1
                 break;
             case 'enemy2':
                 body.setSize(35, 35);
                 this.speed = GameConfig.ENEMY_SPEED * 0.8;
-                this.patrolDistance = 200;
+                this.patrolDistance = 120; // Меньше для enemy2
                 break;
             case 'enemy3':
                 body.setSize(32, 35);
                 this.speed = GameConfig.ENEMY_SPEED * 1.2;
-                this.patrolDistance = 250;
+                this.patrolDistance = 140; // Меньше для enemy3
                 break;
         }
         
@@ -112,20 +124,10 @@ export class Enemy {
         const body = this.sprite.body as Phaser.Physics.Arcade.Body;
         if (!body) return; // Защита от отсутствующего body
         
-        // Проверяем края платформы
-        if (body.blocked && (body.blocked.left || body.blocked.right)) {
-            this.changeDirection();
-        }
-        
-        // Проверяем обрыв впереди
+        // Проверяем различные условия
         this.checkEdge();
         
-        // Патрулирование в пределах зоны
-        if (Math.abs(this.sprite.x - this.startX) > this.patrolDistance) {
-            this.changeDirection();
-        }
-        
-        // Обнаружение игрока
+        // Обнаружение игрока (это также управляет патрулированием)
         if (this.player) {
             this.detectPlayer();
         }
@@ -137,19 +139,34 @@ export class Enemy {
     private checkEdge(): void {
         const body = this.sprite.body as Phaser.Physics.Arcade.Body;
         
-        // Проверяем наличие платформы впереди
-        const checkX = this.sprite.x + (this.direction * 50);
-        const checkY = this.sprite.y + 60;
+        // Проверка застревания - ВРЕМЕННО ОТКЛЮЧАЕМ для отладки
+        // if (Math.abs(this.sprite.x - this.lastX) < 0.5) {
+        //     this.stuckCounter++;
+        //     if (this.stuckCounter > 30) {
+        //         this.changeDirection();
+        //         this.stuckCounter = 0;
+        //     }
+        // } else {
+        //     this.stuckCounter = 0;
+        // }
+        this.lastX = this.sprite.x;
         
-        // Простая проверка границ платформы
-        if (this.sprite.x < 100 || this.sprite.x > 4900) {
+        // Проверка границ УРОВНЯ (не экрана)
+        if (this.sprite.x < 50 || this.sprite.x > 4950) {
             this.changeDirection();
             return;
         }
         
-        // Проверяем расстояние от стартовой позиции
-        if (Math.abs(this.sprite.x - this.startX) > this.patrolDistance) {
-            this.changeDirection();
+        // Убрали проверку body.blocked - враги проходят сквозь препятствия
+        
+        // В режиме патруля - проверяем расстояние от стартовой позиции
+        if (this.aiState === 'patrol' && Math.abs(this.sprite.x - this.startX) > this.patrolDistance) {
+            this.aiState = 'return';
+        }
+        
+        // В режиме возврата - возвращаемся к стартовой позиции
+        if (this.aiState === 'return' && Math.abs(this.sprite.x - this.startX) < 50) {
+            this.aiState = 'patrol';
         }
     }
 
@@ -169,30 +186,66 @@ export class Enemy {
             this.player.y
         );
         
-        if (distance < GameConfig.ENEMY_DETECTION_RANGE) {
-            // Преследуем игрока
-            const directionToPlayer = this.player.x > this.sprite.x ? 1 : -1;
+        const canSeePlayer = distance < GameConfig.ENEMY_DETECTION_RANGE;
+        const directionToPlayer = this.player.x > this.sprite.x ? 1 : -1;
+        const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+        
+        // Обновляем память о игроке
+        if (canSeePlayer) {
+            this.lastPlayerSeen = Date.now();
+        }
+        
+        const remembersPlayer = (Date.now() - this.lastPlayerSeen) < this.memoryDuration;
+        
+        // Состояние AI
+        if (distance < 50 && this.attackCooldown <= 0) {
+            // Атака
+            this.aiState = 'attack';
+            this.sprite.play(`${this.type}_attack`, true);
+            this.attackCooldown = 1000;
+            body.setVelocityX(0); // Останавливаемся для атаки
             
+        } else if (canSeePlayer || remembersPlayer) {
+            // Преследование
+            this.aiState = 'chase';
+            this.direction = directionToPlayer;
+            
+            // Разная скорость преследования для разных типов
+            let chaseSpeed = this.speed * 1.5;
+            if (this.type === 'enemy3') chaseSpeed = this.speed * 2; // enemy3 быстрее
+            if (this.type === 'enemy2') chaseSpeed = this.speed * 1.3; // enemy2 медленнее
+            
+            body.setVelocityX(chaseSpeed * this.direction);
+            
+            // Умные прыжки для enemy3
             if (this.type === 'enemy3') {
-                // enemy3 может прыгать
-                const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-                if (body.blocked.down && Math.abs(this.player.y - this.sprite.y) > 50) {
+                const heightDiff = this.player.y - this.sprite.y;
+                if (body.blocked.down && heightDiff < -30) {
+                    // Прыгаем если игрок выше
                     body.setVelocityY(GameConfig.ENEMY_JUMP_VELOCITY);
+                } else if (distance < 150 && Math.random() < 0.02) {
+                    // Случайные тактические прыжки в бою
+                    if (body.blocked.down) {
+                        body.setVelocityY(GameConfig.ENEMY_JUMP_VELOCITY * 0.8);
+                    }
                 }
             }
             
-            this.direction = directionToPlayer;
-            const body = this.sprite.body as Phaser.Physics.Arcade.Body;
-            body.setVelocityX(this.speed * 1.5 * this.direction);
-            
-            // Анимация атаки
-            if (distance < 50) {
-                this.sprite.play(`${this.type}_attack`, true);
-            }
-        } else {
-            // Возвращаемся к патрулированию
-            const body = this.sprite.body as Phaser.Physics.Arcade.Body;
+        } else if (Math.abs(this.sprite.x - this.startX) > this.patrolDistance * 1.5) {
+            // Возвращение на базу
+            this.aiState = 'return';
+            this.direction = this.startX > this.sprite.x ? 1 : -1;
             body.setVelocityX(this.speed * this.direction);
+            
+        } else {
+            // Патрулирование
+            this.aiState = 'patrol';
+            body.setVelocityX(this.speed * this.direction);
+        }
+        
+        // Уменьшаем кулдаун атаки
+        if (this.attackCooldown > 0) {
+            this.attackCooldown -= 16; // Примерно 60 FPS
         }
     }
 

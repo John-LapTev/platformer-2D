@@ -452,12 +452,12 @@ export class GameScene extends Phaser.Scene {
 
     private createEnemies(): void {
         const enemyPositions = [
-            { x: 400, y: 660, type: 'enemy1' },
-            { x: 800, y: 660, type: 'enemy2' },
-            { x: 1200, y: 400, type: 'enemy3' },
-            { x: 1600, y: 660, type: 'enemy1' },
-            { x: 2000, y: 300, type: 'enemy2' },
-            { x: 2400, y: 660, type: 'enemy3' }
+            { x: 400, y: 600, type: 'enemy1' },   // Безопасная зона, над землёй
+            { x: 750, y: 600, type: 'enemy2' },   // Между шипами на 600 и 900
+            { x: 1200, y: 380, type: 'enemy3' },  // На платформе
+            { x: 1950, y: 600, type: 'enemy1' },  // Между шипами на 1800 и 2100
+            { x: 2000, y: 300, type: 'enemy2' },  // На платформе
+            { x: 2250, y: 600, type: 'enemy3' }   // Между шипами на 2100 и 2400
         ];
         
         enemyPositions.forEach(pos => {
@@ -487,6 +487,15 @@ export class GameScene extends Phaser.Scene {
         this.enemies.forEach(enemy => {
             this.physics.add.collider(enemy.sprite, this.platforms);
             
+            // ВАЖНО: Отключаем коллизии врагов с опасностями явно
+            // Без этого staticGroup будет блокировать врагов
+            this.physics.add.collider(
+                enemy.sprite, 
+                this.hazards,
+                null, // Нет обработчика
+                () => false // Всегда возвращаем false, чтобы отключить коллизию
+            );
+            
             // Столкновения с игроком
             this.physics.add.overlap(
                 this.player.sprite,
@@ -497,7 +506,7 @@ export class GameScene extends Phaser.Scene {
             );
         });
         
-        // Коллизии с опасностями
+        // Коллизии с опасностями (только для игрока, не для врагов)
         this.physics.add.overlap(
             this.player.sprite,
             this.hazards,

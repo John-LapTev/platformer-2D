@@ -1,6 +1,6 @@
 {
   "name": "super-adventure-game",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "Professional platformer game with mobile support",
   "type": "module",
   "scripts": {
