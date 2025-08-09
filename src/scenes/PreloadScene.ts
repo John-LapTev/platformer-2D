@@ -84,18 +84,48 @@ export class PreloadScene extends Phaser.Scene {
     private loadAssets(): void {
         // Загружаем красивые AI-сгенерированные спрайты
         this.load.image('hero-sprite', '/sprites/hero.png');
-        this.load.image('background-forest', '/sprites/background.png');
+        this.load.image('background-forest', '/sprites/background-forest.png'); // Фон для главного меню
+        this.load.image('background-panorama', '/sprites/background_panorama_optimized.jpg');
         this.load.image('platform-texture', '/sprites/platform.png');
         this.load.image('enemy-sprite', '/sprites/enemy.png');
         
         // Генерируем дополнительные спрайты программно
         this.generateSprites();
         
-        // Загружаем звуки (если есть)
-        // this.load.audio('jump', 'assets/sounds/jump.mp3');
-        // this.load.audio('coin', 'assets/sounds/coin.mp3');
-        // this.load.audio('powerup', 'assets/sounds/powerup.mp3');
-        // this.load.audio('music', 'assets/sounds/music.mp3');
+        // Загружаем превью для уровней (используем оригинальные файлы)
+        this.load.image('level1_preview', 'sprites/level1_preview.jpg');
+        this.load.image('level2_preview', 'sprites/level2_preview.jpg');
+        this.load.image('level3_preview', 'sprites/level3_preview.jpg');
+        
+        // Загружаем звуки
+        this.loadSounds();
+    }
+    
+    private loadSounds(): void {
+        // Звуки игрока
+        this.load.audio('jump', '/sounds/jump.wav');
+        this.load.audio('land', '/sounds/land.wav');
+        this.load.audio('footstep', '/sounds/footstep.wav');
+        
+        // Звуки сбора предметов
+        this.load.audio('coin', '/sounds/coin.wav');
+        this.load.audio('powerup', '/sounds/powerup.wav');
+        
+        // Звуки урона
+        this.load.audio('hurt', '/sounds/hurt.wav');
+        this.load.audio('death', '/sounds/death.wav');
+        
+        // Звуки врагов
+        this.load.audio('enemy_hurt', '/sounds/enemy_hurt.wav');
+        this.load.audio('enemy_death', '/sounds/enemy_death.wav');
+        
+        // Звуки окружения
+        this.load.audio('portal', '/sounds/portal.wav');
+        this.load.audio('lava_bubble', '/sounds/lava_bubble.wav');
+        
+        // Музыка - используем новую сгенерированную
+        this.load.audio('level1_music', '/sounds/level1_music_new.wav');
+        this.load.audio('menu_music', '/sounds/menu_music_new.wav');
     }
 
     private generateSprites(): void {

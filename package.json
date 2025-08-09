@@ -12,9 +12,11 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "deploy": "npm run build && gh-pages -d dist",
     "generate:sprites": "node scripts/generate-sprites.js",
+    "generate:previews": "node scripts/generate_level_previews.cjs",
     "journal": "node scripts/dev-journal.js"
   },
   "dependencies": {
+    "canvas": "^3.1.2",
     "localforage": "^1.10.0",
     "phaser": "^3.70.0"
   },

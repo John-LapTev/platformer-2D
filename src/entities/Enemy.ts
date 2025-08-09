@@ -254,6 +254,11 @@ export class Enemy {
     }
 
     public takeDamage(damage: number = 1): void {
+        // Воспроизводим звук урона врага
+        if ((this.scene as any).soundSystem) {
+            (this.scene as any).soundSystem.playSound('enemy_hurt');
+        }
+        
         // Можно расширить для системы здоровья
         this.destroy();
     }
@@ -262,6 +267,11 @@ export class Enemy {
         if (!this.isAlive) return;
         
         this.isAlive = false;
+        
+        // Воспроизводим звук смерти врага
+        if ((this.scene as any).soundSystem) {
+            (this.scene as any).soundSystem.playSound('enemy_death');
+        }
         
         // Эффект смерти
         this.scene.tweens.add({

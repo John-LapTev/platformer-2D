@@ -27,6 +27,7 @@ export class Player {
     private healthRegenTimer: number = 0;
     private lastDamageTime: number = 0;
     private isKnockback: boolean = false; // Флаг для отключения управления при отбросе
+    private footstepTimer: number = 0; // Таймер для звука шагов
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
         this.scene = scene;
@@ -196,15 +197,33 @@ export class Player {
             }
         }
         
-        // Обновляем счётчик прыжков
-        if (onGround) {
-            this.jumpCount = 0;
-        }
-        
         // Отслеживаем бездействие
         const keyboard = this.scene.input.keyboard;
         let isMoving = false;
         let hasInput = false;
+        
+        // Обновляем счётчик прыжков и звук шагов
+        if (onGround) {
+            this.jumpCount = 0;
+            
+            // Проверяем движение для звука шагов
+            const isMovingNow = Math.abs(body.velocity.x) > 10;
+            
+            // Звук шагов при движении по земле
+            if (isMovingNow && !this.isOnVine) {
+                this.footstepTimer += delta;
+                if (this.footstepTimer >= 400) { // Каждые 400мс
+                    this.footstepTimer = 0;
+                    if ((this.scene as any).soundSystem) {
+                        (this.scene as any).soundSystem.playSound('footstep', { volume: 0.6 });
+                    }
+                }
+            } else {
+                this.footstepTimer = 0;
+            }
+        } else {
+            this.footstepTimer = 0;
+        }
         
         // Проверяем стрелки и WASD
         if (this.cursors?.left.isDown || keyboard?.addKey('A').isDown) {
@@ -386,6 +405,10 @@ export class Player {
             body.setVelocityY(this.jumpVelocity);
             this.jumpCount = 1; // Считаем как первый прыжок
             this.createJumpEffect();
+            // Воспроизводим звук прыжка
+            if ((this.scene as any).soundSystem) {
+                (this.scene as any).soundSystem.playSound('jump');
+            }
             return;
         }
         
@@ -402,6 +425,11 @@ export class Player {
             
             body.setVelocityY(velocity);
             this.jumpCount++;
+            
+            // Воспроизводим звук прыжка
+            if ((this.scene as any).soundSystem) {
+                (this.scene as any).soundSystem.playSound('jump');
+            }
             
             // Эффект прыжка
             this.createJumpEffect();
@@ -585,6 +613,11 @@ export class Player {
         body.setVelocity(0, 0);
         body.setAllowGravity(false);
         
+        // Воспроизводим звук смерти
+        if ((this.scene as any).soundSystem) {
+            (this.scene as any).soundSystem.playSound('death');
+        }
+        
         // Отключаем управление
         this.isKnockback = true;
         
@@ -681,6 +714,11 @@ export class Player {
         this.lastDamageTime = Date.now();
         this.healthRegenTimer = 0;
         
+        // Воспроизводим звук урона
+        if ((this.scene as any).soundSystem) {
+            (this.scene as any).soundSystem.playSound('hurt');
+        }
+        
         // Красная вспышка
         this.sprite.setTint(0xff0000);
         this.scene.time.delayedCall(200, () => {
@@ -741,6 +779,11 @@ export class Player {
         this.partialHealth--;
         this.lastDamageTime = Date.now();
         this.healthRegenTimer = 0;
+        
+        // Воспроизводим звук урона
+        if ((this.scene as any).soundSystem) {
+            (this.scene as any).soundSystem.playSound('hurt');
+        }
         
         // Красная вспышка
         this.sprite.setTint(0xff0000);

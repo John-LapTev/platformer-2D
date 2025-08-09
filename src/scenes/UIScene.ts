@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameConfig } from '../config/GameConfig';
+import { SettingsModal } from '../ui/SettingsModal';
 
 export class UIScene extends Phaser.Scene {
     private scoreText!: Phaser.GameObjects.Text;
@@ -14,6 +15,8 @@ export class UIScene extends Phaser.Scene {
     private powerUpTimers: Map<string, number> = new Map();
     private currentLives: number = GameConfig.MAX_LIVES;
     private currentPartialHealth: number = 3;
+    private iconPanel!: Phaser.GameObjects.Container;
+    private iconButtons: Map<string, Phaser.GameObjects.Container> = new Map();
 
     constructor() {
         super({ key: 'UIScene' });
@@ -22,6 +25,9 @@ export class UIScene extends Phaser.Scene {
     create(): void {
         // UI всегда поверх игры
         this.scene.bringToTop();
+        
+        // Обработка изменения размера экрана
+        this.scale.on('resize', this.handleResize, this);
         
         // Создаём элементы UI
         this.createLeftPanel();
@@ -114,126 +120,302 @@ export class UIScene extends Phaser.Scene {
     }
 
     private createRightPanel(): void {
-        // Техническая информация справа
-        const rightX = 1200;
+        // Создаём автоматическую панель для иконок справа
+        this.createIconPanel();
         
-        // FPS счётчик
-        this.fpsText = this.add.text(rightX, 30, 'FPS: 60', {
+        // FPS счётчик под панелью иконок
+        this.fpsText = this.add.text(this.scale.width - 60, 65, 'FPS: 60', {
             fontSize: '14px',
-            fontFamily: 'monospace',
+            fontFamily: 'Courier New, monospace',
             color: '#66bb6a',
             shadow: {
                 offsetX: 1,
                 offsetY: 1,
                 color: '#000000',
-                blur: 2,
+                blur: 3,
                 fill: true
             }
         });
-        this.fpsText.setOrigin(1, 0.5);
+        this.fpsText.setOrigin(1, 0);
         this.fpsText.setScrollFactor(0);
+    }
+    
+    private createIconPanel(): void {
+        // Создаём горизонтальную панель иконок вверху справа
+        const panelX = this.scale.width - 120;
+        const panelY = 30;
+        this.iconPanel = this.add.container(panelX, panelY);
+        this.iconPanel.setScrollFactor(0);
+        
+        // Красивый градиентный фон панели
+        const panelBg = this.add.graphics();
+        // Тёмный полупрозрачный фон с градиентом
+        panelBg.fillGradientStyle(0x1a1a1a, 0x2a2a2a, 0x1a1a1a, 0x2a2a2a, 0.85, 0.85, 0.75, 0.75);
+        panelBg.fillRoundedRect(-105, -22, 210, 44, 15);
+        // Стильная рамка
+        panelBg.lineStyle(2, 0xffffff, 0.2);
+        panelBg.strokeRoundedRect(-105, -22, 210, 44, 15);
+        // Внутренняя подсветка
+        panelBg.lineStyle(1, 0xffffff, 0.1);
+        panelBg.strokeRoundedRect(-103, -20, 206, 40, 14);
+        this.iconPanel.add(panelBg);
+        
+        // Добавляем кнопки в панель горизонтально
+        const buttonSpacing = 45;
+        const startX = -75;
         
         // Кнопка паузы
-        this.pauseButton = this.add.container(rightX, 70);
-        
-        // Фон кнопки
-        const pauseBg = this.add.graphics();
-        pauseBg.fillStyle(0x2196f3, 0.8);
-        pauseBg.fillCircle(0, 0, 25);
-        pauseBg.lineStyle(2, 0x1976d2, 1);
-        pauseBg.strokeCircle(0, 0, 25);
-        
-        // Иконка паузы
-        const pauseIcon = this.add.text(0, 0, '⏸', {
-            fontSize: '24px',
-            color: '#ffffff'
-        });
-        pauseIcon.setOrigin(0.5);
-        
-        this.pauseButton.add([pauseBg, pauseIcon]);
-        this.pauseButton.setScrollFactor(0);
-        this.pauseButton.setInteractive(new Phaser.Geom.Circle(0, 0, 25), Phaser.Geom.Circle.Contains);
-        
-        // Hover эффект
-        this.pauseButton.on('pointerover', () => {
-            pauseBg.clear();
-            pauseBg.fillStyle(0x42a5f5, 1);
-            pauseBg.fillCircle(0, 0, 27);
-            pauseBg.lineStyle(2, 0x1976d2, 1);
-            pauseBg.strokeCircle(0, 0, 27);
-        });
-        
-        this.pauseButton.on('pointerout', () => {
-            pauseBg.clear();
-            pauseBg.fillStyle(0x2196f3, 0.8);
-            pauseBg.fillCircle(0, 0, 25);
-            pauseBg.lineStyle(2, 0x1976d2, 1);
-            pauseBg.strokeCircle(0, 0, 25);
-        });
-        
-        this.pauseButton.on('pointerdown', () => {
+        this.pauseButton = this.createIconButton(startX, 0, 0x2196f3, () => {
             const gameScene = this.scene.get('GameScene');
             gameScene.events.emit('toggle-pause');
         });
+        const pauseIcon = this.add.text(0, 0, '⏸', {
+            fontSize: '22px',
+            color: '#ffffff'
+        });
+        pauseIcon.setOrigin(0.5);
+        this.pauseButton.add(pauseIcon);
+        this.iconPanel.add(this.pauseButton);
+        this.iconButtons.set('pause', this.pauseButton);
+        
+        // Кнопка звука с Unicode иконкой
+        const muteButton = this.createIconButton(startX + buttonSpacing, 0, 0x9c27b0, () => {
+            this.toggleMute();
+        });
+        // Используем Unicode символ для динамика
+        const speakerIcon = this.add.text(0, 0, '🔊', {
+            fontSize: '18px'
+        });
+        speakerIcon.setOrigin(0.5);
+        muteButton.add(speakerIcon);
+        muteButton.setData('icon', speakerIcon);
+        this.iconPanel.add(muteButton);
+        this.iconButtons.set('mute', muteButton);
+        
+        // Кнопка полноэкранного режима
+        const fullscreenButton = this.createIconButton(startX + buttonSpacing * 2, 0, 0x4caf50, () => {
+            if (this.scale.isFullscreen) {
+                this.scale.stopFullscreen();
+            } else {
+                this.scale.startFullscreen();
+            }
+        });
+        const fullscreenIcon = this.add.text(0, 0, '⛶', {
+            fontSize: '22px',
+            color: '#ffffff'
+        });
+        fullscreenIcon.setOrigin(0.5);
+        fullscreenButton.add(fullscreenIcon);
+        fullscreenButton.setData('icon', fullscreenIcon);
+        this.iconPanel.add(fullscreenButton);
+        this.iconButtons.set('fullscreen', fullscreenButton);
+        
+        // Кнопка настроек
+        const settingsButton = this.createIconButton(startX + buttonSpacing * 3, 0, 0xff9800, () => {
+            this.showSettingsModal();
+        });
+        const settingsIcon = this.add.text(0, 0, '⚙', {
+            fontSize: '22px',
+            color: '#ffffff'
+        });
+        settingsIcon.setOrigin(0.5);
+        settingsButton.add(settingsIcon);
+        this.iconPanel.add(settingsButton);
+        this.iconButtons.set('settings', settingsButton);
+    }
+    
+    private createIconButton(x: number, y: number, color: number, callback: () => void): Phaser.GameObjects.Container {
+        const container = this.add.container(x, y);
+        
+        const bg = this.add.graphics();
+        bg.fillStyle(color, 0.8);
+        bg.fillCircle(0, 0, 18);
+        bg.lineStyle(1.5, 0xffffff, 0.5);
+        bg.strokeCircle(0, 0, 18);
+        
+        container.add(bg);
+        container.setInteractive(new Phaser.Geom.Circle(0, 0, 18), Phaser.Geom.Circle.Contains);
+        
+        // Hover эффекты
+        container.on('pointerover', () => {
+            bg.clear();
+            bg.fillStyle(color, 1);
+            bg.fillCircle(0, 0, 20);
+            bg.lineStyle(2, 0xffffff, 0.8);
+            bg.strokeCircle(0, 0, 20);
+            container.setScale(1.1);
+        });
+        
+        container.on('pointerout', () => {
+            bg.clear();
+            bg.fillStyle(color, 0.8);
+            bg.fillCircle(0, 0, 18);
+            bg.lineStyle(1.5, 0xffffff, 0.5);
+            bg.strokeCircle(0, 0, 18);
+            container.setScale(1);
+        });
+        
+        container.on('pointerdown', callback);
+        
+        container.setData('bg', bg);
+        container.setData('color', color);
+        
+        return container;
+    }
+    
+    private updateSpeakerIcon(graphics: Phaser.GameObjects.Graphics): void {
+        graphics.clear();
+        const isMuted = localStorage.getItem('soundMuted') === 'true';
+        
+        // Рисуем реалистичный динамик
+        graphics.fillStyle(0xffffff, 1);
+        
+        // Основная часть динамика
+        graphics.fillRect(-8, -4, 6, 8);
+        
+        // Диффузор динамика
+        graphics.beginPath();
+        graphics.moveTo(-2, -4);
+        graphics.lineTo(4, -7);
+        graphics.lineTo(4, 7);
+        graphics.lineTo(-2, 4);
+        graphics.closePath();
+        graphics.fillPath();
+        
+        // Коннектор
+        graphics.fillRect(-3, -2, 2, 4);
+        
+        if (isMuted) {
+            // Крестик для выключенного звука
+            graphics.lineStyle(2, 0xff0000, 1);
+            graphics.lineBetween(6, -6, -6, 6);
+            graphics.lineBetween(-6, -6, 6, 6);
+        } else {
+            // Волны звука
+            graphics.lineStyle(1.5, 0xffffff, 0.9);
+            graphics.beginPath();
+            graphics.arc(5, 0, 4, -0.6, 0.6, false);
+            graphics.strokePath();
+            
+            graphics.lineStyle(1.5, 0xffffff, 0.6);
+            graphics.beginPath();
+            graphics.arc(5, 0, 7, -0.6, 0.6, false);
+            graphics.strokePath();
+            
+            graphics.lineStyle(1.5, 0xffffff, 0.3);
+            graphics.beginPath();
+            graphics.arc(5, 0, 10, -0.6, 0.6, false);
+            graphics.strokePath();
+        }
+    }
+    
+    private toggleMute(): void {
+        const isMuted = localStorage.getItem('soundMuted') === 'true';
+        const newMuted = !isMuted;
+        
+        localStorage.setItem('soundMuted', String(newMuted));
+        
+        // Применяем изменения к звуковой системе игры
+        const gameScene = this.scene.get('GameScene') as any;
+        if (gameScene && gameScene.soundSystem) {
+            if (newMuted) {
+                gameScene.soundSystem.setMusicVolume(0);
+                gameScene.soundSystem.setSfxVolume(0);
+            } else {
+                const musicVolume = parseFloat(localStorage.getItem('musicVolume') || '0.2');
+                const sfxVolume = parseFloat(localStorage.getItem('sfxVolume') || '0.4');
+                gameScene.soundSystem.setMusicVolume(musicVolume);
+                gameScene.soundSystem.setSfxVolume(sfxVolume);
+            }
+            
+            // Звук клика
+            if (!newMuted) {
+                gameScene.soundSystem.playSound('coin', { volume: 0.3 });
+            }
+        }
+        
+        // Обновляем иконку
+        const muteButton = this.iconButtons.get('mute');
+        if (muteButton) {
+            const icon = muteButton.getData('icon');
+            if (icon && icon instanceof Phaser.GameObjects.Text) {
+                icon.setText(newMuted ? '🔇' : '🔊');
+            }
+        }
     }
 
     private createPauseOverlay(): void {
-        this.pauseOverlay = this.add.container(640, 360);
+        const { width, height } = this.scale;
+        this.pauseOverlay = this.add.container(width / 2, height / 2);
         
-        // Затемнение
-        const overlay = this.add.rectangle(0, 0, 1280, 720, 0x000000, 0.7);
+        // Затемнение на весь экран
+        const overlay = this.add.rectangle(0, 0, width * 2, height * 2, 0x000000, 0.85);
         
-        // Панель паузы
+        // Панель паузы на весь экран с отступами
+        const panelWidth = Math.min(width * 0.9, 1200);
+        const panelHeight = Math.min(height * 0.85, 700);
+        
         const panel = this.add.graphics();
-        panel.fillGradientStyle(0x1a1a2e, 0x0f3460, 0x1a1a2e, 0x0f3460, 1);
-        panel.fillRoundedRect(-200, -150, 400, 300, 20);
-        panel.lineStyle(3, 0x2196f3, 1);
-        panel.strokeRoundedRect(-200, -150, 400, 300, 20);
+        panel.fillGradientStyle(0x1a1a2e, 0x0f3460, 0x1a1a2e, 0x0f3460, 0.98);
+        panel.fillRoundedRect(-panelWidth/2, -panelHeight/2, panelWidth, panelHeight, 30);
+        panel.lineStyle(4, 0x2196f3, 1);
+        panel.strokeRoundedRect(-panelWidth/2, -panelHeight/2, panelWidth, panelHeight, 30);
         
         // Заголовок
-        const title = this.add.text(0, -100, 'ПАУЗА', {
-            fontSize: '48px',
+        const title = this.add.text(0, -250, 'ПАУЗА', {
+            fontSize: '72px',
             fontFamily: 'Arial Black',
             color: '#ffffff',
             shadow: {
-                offsetX: 2,
-                offsetY: 2,
+                offsetX: 3,
+                offsetY: 3,
                 color: '#000000',
-                blur: 5,
+                blur: 8,
                 fill: true
             }
         });
         title.setOrigin(0.5);
         
         // Кнопка продолжить
-        const continueButton = this.createStyledButton(0, 0, 'Продолжить', 0x4caf50, () => {
+        const continueButton = this.createStyledButton(0, -50, 'Продолжить', 0x4caf50, () => {
             const gameScene = this.scene.get('GameScene');
             gameScene.events.emit('toggle-pause');
         });
         
+        // Кнопка настроек
+        const settingsButton = this.createStyledButton(0, 50, 'Настройки', 0x2196f3, () => {
+            this.showSettingsModal();
+        });
+        
         // Кнопка в меню
-        const menuButton = this.createStyledButton(0, 80, 'В меню', 0xf44336, () => {
+        const menuButton = this.createStyledButton(0, 150, 'В меню', 0xf44336, () => {
+            // Останавливаем ВСЕ звуки перед переходом в меню
+            this.sound.stopAll();
             this.scene.stop('GameScene');
             this.scene.stop();
             this.scene.start('MenuScene');
         });
         
-        this.pauseOverlay.add([overlay, panel, title, ...continueButton, ...menuButton]);
+        this.pauseOverlay.add([overlay, panel, title, ...continueButton, ...settingsButton, ...menuButton]);
         this.pauseOverlay.setVisible(false);
     }
 
     private createGameOverOverlay(): void {
-        this.gameOverOverlay = this.add.container(640, 360);
+        const { width, height } = this.scale;
+        this.gameOverOverlay = this.add.container(width / 2, height / 2);
         
-        // Затемнение
-        const overlay = this.add.rectangle(0, 0, 1280, 720, 0x000000, 0.8);
+        // Затемнение на весь экран
+        const overlay = this.add.rectangle(0, 0, width * 2, height * 2, 0x000000, 0.9);
         
-        // Панель
+        // Панель на весь экран
+        const panelWidth = Math.min(width * 0.8, 800);
+        const panelHeight = Math.min(height * 0.75, 600);
+        
         const panel = this.add.graphics();
         panel.fillGradientStyle(0x8b0000, 0x330000, 0x8b0000, 0x330000, 1);
-        panel.fillRoundedRect(-250, -200, 500, 400, 20);
-        panel.lineStyle(3, 0xff0000, 1);
-        panel.strokeRoundedRect(-250, -200, 500, 400, 20);
+        panel.fillRoundedRect(-panelWidth/2, -panelHeight/2, panelWidth, panelHeight, 25);
+        panel.lineStyle(4, 0xff0000, 1);
+        panel.strokeRoundedRect(-panelWidth/2, -panelHeight/2, panelWidth, panelHeight, 25);
         
         // Заголовок
         const title = this.add.text(0, -120, 'ИГРА ОКОНЧЕНА', {
@@ -268,6 +450,8 @@ export class UIScene extends Phaser.Scene {
         
         // Кнопка в меню
         const menuButton = this.createStyledButton(0, 120, 'В меню', 0x9e9e9e, () => {
+            // Останавливаем ВСЕ звуки перед переходом в меню
+            this.sound.stopAll();
             this.scene.stop('GameScene');
             this.scene.stop();
             this.scene.start('MenuScene');
@@ -278,17 +462,18 @@ export class UIScene extends Phaser.Scene {
     }
 
     private createVictoryOverlay(): void {
-        this.victoryOverlay = this.add.container(640, 360);
+        const { width, height } = this.scale;
+        this.victoryOverlay = this.add.container(width / 2, height / 2);
         
-        // Затемнение
-        const overlay = this.add.rectangle(0, 0, 1280, 720, 0x000000, 0.8);
+        // Затемнение на весь экран
+        const overlay = this.add.rectangle(0, 0, width * 2, height * 2, 0x000000, 0.85);
         
-        // Панель
+        // Панель победы - больше и красивее
         const panel = this.add.graphics();
-        panel.fillGradientStyle(0x1b5e20, 0x004d00, 0x1b5e20, 0x004d00, 1);
-        panel.fillRoundedRect(-250, -200, 500, 400, 20);
-        panel.lineStyle(3, 0xffd700, 1);
-        panel.strokeRoundedRect(-250, -200, 500, 400, 20);
+        panel.fillGradientStyle(0x2e7d32, 0x1b5e20, 0x2e7d32, 0x1b5e20, 1);
+        panel.fillRoundedRect(-350, -250, 700, 500, 30);
+        panel.lineStyle(4, 0xffd700, 1);
+        panel.strokeRoundedRect(-350, -250, 700, 500, 30);
         
         // Заголовок
         const title = this.add.text(0, -120, 'ПОБЕДА!', {
@@ -342,6 +527,8 @@ export class UIScene extends Phaser.Scene {
         
         // Кнопка в меню
         const menuButton = this.createStyledButton(0, 200, 'В меню', 0x2196f3, () => {
+            // Останавливаем ВСЕ звуки перед переходом в меню
+            this.sound.stopAll();
             this.scene.stop('GameScene');
             this.scene.stop();
             this.scene.start('MenuScene');
@@ -454,18 +641,29 @@ export class UIScene extends Phaser.Scene {
     }
 
     private startPowerUpTimer(type: string): void {
-        // Отображаем иконку активного power-up в центре
-        const centerX = 640;
-        const centerY = 40;
-        
         // Удаляем старую иконку если есть
         if (this.powerUpIcons.has(type)) {
             const oldIcon = this.powerUpIcons.get(type);
             oldIcon?.destroy();
+            this.powerUpIcons.delete(type);
         }
         
+        // Рассчитываем позицию для иконки
+        const { width } = this.scale;
+        const iconSpacing = 70;
+        const totalIcons = this.powerUpIcons.size + 1; // +1 для новой иконки
+        const startX = width / 2 - ((totalIcons - 1) * iconSpacing) / 2;
+        const centerY = 40;
+        
+        // Перепозиционируем существующие иконки
+        let index = 0;
+        this.powerUpIcons.forEach((icon) => {
+            icon.x = startX + index * iconSpacing;
+            index++;
+        });
+        
         // Создаём контейнер для power-up
-        const container = this.add.container(centerX, centerY);
+        const container = this.add.container(startX + index * iconSpacing, centerY);
         container.setScrollFactor(0);
         
         // Фон для иконки
@@ -520,6 +718,8 @@ export class UIScene extends Phaser.Scene {
                         onComplete: () => {
                             container.destroy();
                             this.powerUpIcons.delete(type);
+                            // Перепозиционируем оставшиеся иконки
+                            this.repositionPowerUpIcons();
                         }
                     });
                 }
@@ -530,6 +730,24 @@ export class UIScene extends Phaser.Scene {
         timerText.setText(`${timeLeft}s`);
     }
 
+    private repositionPowerUpIcons(): void {
+        const { width } = this.scale;
+        const iconSpacing = 70;
+        const totalIcons = this.powerUpIcons.size;
+        const startX = width / 2 - ((totalIcons - 1) * iconSpacing) / 2;
+        
+        let index = 0;
+        this.powerUpIcons.forEach((icon) => {
+            this.tweens.add({
+                targets: icon,
+                x: startX + index * iconSpacing,
+                duration: 300,
+                ease: 'Power2'
+            });
+            index++;
+        });
+    }
+    
     private getPowerUpColor(type: string): number {
         switch (type) {
             case 'jump': return 0xffd700;
@@ -566,6 +784,16 @@ export class UIScene extends Phaser.Scene {
             }
         });
     }
+    
+    private showSettingsModal(): void {
+        const gameScene = this.scene.get('GameScene') as any;
+        if (gameScene && gameScene.soundSystem) {
+            const modal = new SettingsModal(this, gameScene.soundSystem);
+            modal.show();
+        }
+    }
+    
+    // Удаляем старый метод createMuteButton - теперь он встроен в панель иконок
 
     private showGameOverOverlay(finalScore: number): void {
         this.gameOverOverlay.setVisible(true);
@@ -683,6 +911,47 @@ export class UIScene extends Phaser.Scene {
             this.fpsText.setColor('#ffeb3b'); // Жёлтый
         } else {
             this.fpsText.setColor('#ef5350'); // Красный
+        }
+        
+        // Обновляем иконку полноэкранного режима
+        const fullscreenButton = this.iconButtons.get('fullscreen');
+        if (fullscreenButton) {
+            const icon = fullscreenButton.getData('icon');
+            if (icon && icon instanceof Phaser.GameObjects.Text) {
+                icon.setText(this.scale.isFullscreen ? '⛷' : '⛶');
+            }
+        }
+    }
+    
+    private handleResize(gameSize: Phaser.Structs.Size): void {
+        // Обновляем позиции UI элементов при изменении размера экрана
+        const { width, height } = gameSize;
+        
+        // Обновляем позиции элементов UI
+        if (this.fpsText) {
+            this.fpsText.setPosition(width - 60, 65);
+        }
+        
+        if (this.iconPanel) {
+            this.iconPanel.setPosition(width - 120, 30);
+        }
+        
+        // Обновляем power-up иконки в центре
+        this.powerUpIcons.forEach(container => {
+            container.setPosition(width / 2, 40);
+        });
+        
+        // Обновляем оверлеи
+        if (this.pauseOverlay) {
+            this.pauseOverlay.setPosition(width / 2, height / 2);
+        }
+        
+        if (this.gameOverOverlay) {
+            this.gameOverOverlay.setPosition(width / 2, height / 2);
+        }
+        
+        if (this.victoryOverlay) {
+            this.victoryOverlay.setPosition(width / 2, height / 2);
         }
     }
 }

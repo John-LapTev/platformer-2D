@@ -6,6 +6,7 @@ import { VineSystem } from '../systems/VineSystem';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { SaveSystem } from '../systems/SaveSystem';
 import { PortalSystem } from '../systems/PortalSystem';
+import { SoundSystem } from '../systems/SoundSystem';
 import { GameConfig } from '../config/GameConfig';
 import { TouchControls } from '../ui/TouchControls';
 
@@ -19,7 +20,9 @@ export class GameScene extends Phaser.Scene {
     private vineSystem!: VineSystem;
     private physicsSystem!: PhysicsSystem;
     private portalSystem!: PortalSystem;
+    private soundSystem!: SoundSystem;
     private touchControls?: TouchControls;
+    private backgroundTile!: Phaser.GameObjects.TileSprite;
     private currentLevel: string = 'level1';
     private score: number = 0;
     private lives: number = GameConfig.MAX_LIVES;
@@ -41,6 +44,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     create(): void {
+        // Обработка изменения размера экрана
+        this.scale.on('resize', this.handleResize, this);
+        
         // Фон
         this.createBackground();
         
@@ -48,6 +54,14 @@ export class GameScene extends Phaser.Scene {
         this.physicsSystem = new PhysicsSystem(this);
         this.vineSystem = new VineSystem(this);
         this.portalSystem = new PortalSystem(this);
+        this.soundSystem = new SoundSystem(this);
+        this.soundSystem.createSounds();
+        
+        // Останавливаем ВСЮ музыку перед запуском музыки уровня
+        this.sound.stopAll();
+        
+        // Запускаем фоновую музыку
+        this.soundSystem.playMusic('level1_music', true);
         
         // Создаём уровень
         this.createLevel();
@@ -64,6 +78,9 @@ export class GameScene extends Phaser.Scene {
             spawnPortal.setScale(0.01, 0.01);
             spawnPortal.setAlpha(0);
             spawnPortal.setDepth(100);
+            
+            // Воспроизводим звук портала
+            this.soundSystem.playSound('portal');
             
             // Яркая вспышка при открытии
             const flash = this.add.graphics();
@@ -153,6 +170,11 @@ export class GameScene extends Phaser.Scene {
             this.togglePause();
         });
         
+        // Слушаем событие паузы от UI
+        this.events.on('toggle-pause', () => {
+            this.togglePause();
+        });
+        
         // Обработка полного урона
         this.events.on('player-damage-full', () => {
             this.playerHit();
@@ -167,11 +189,60 @@ export class GameScene extends Phaser.Scene {
     }
 
     private createBackground(): void {
-        // Красивый AI-фон
-        const bg = this.add.image(0, 0, 'background-forest');
-        bg.setOrigin(0, 0);
-        bg.setScrollFactor(0, 0);
-        bg.setDisplaySize(1280, 720);
+        // Получаем размеры экрана
+        const { width, height } = this.scale;
+        
+        // Используем панорамный фон если загружен, иначе обычный
+        const bgKey = this.textures.exists('background-panorama') ? 'background-panorama' : 'background-forest';
+        
+        // Получаем размеры текстуры
+        const bgTexture = this.textures.get(bgKey);
+        const bgFrame = bgTexture.get(0);
+        const bgWidth = bgFrame.width;
+        const bgHeight = bgFrame.height;
+        
+        if (bgKey === 'background-panorama') {
+            // Для панорамы - создаём обычный image, не TileSprite
+            const panorama = this.add.image(0, 0, bgKey);
+            panorama.setOrigin(0, 0);
+            
+            // Масштабируем чтобы покрыть весь экран по высоте с запасом
+            const scaleToFit = (height * 1.5) / bgHeight; // Увеличиваем масштаб для заполнения
+            panorama.setScale(scaleToFit);
+            
+            // Позиционируем так чтобы фон начинался выше камеры
+            panorama.setY(-300); // Начинаем выше чтобы не было пустоты
+            
+            panorama.setScrollFactor(0.3, 0.5); // Параллакс эффект
+            panorama.setDepth(-10);
+            
+            this.backgroundTile = panorama as any; // Сохраняем ссылку для камеры
+        } else {
+            // Для обычного фона используем TileSprite
+            this.backgroundTile = this.add.tileSprite(
+                0, 0,
+                5000, // Ширина для повторения
+                bgHeight, // Оригинальная высота
+                bgKey
+            );
+            this.backgroundTile.setOrigin(0, 0);
+            
+            const scaleY = (height + 500) / bgHeight;
+            this.backgroundTile.setScale(1, scaleY);
+            this.backgroundTile.setY(-200);
+            
+            this.backgroundTile.setScrollFactor(0.5, 0.8);
+            this.backgroundTile.setDepth(-10);
+            
+            // Применяем сохранённое значение размытия фона
+            const savedBlur = parseFloat(localStorage.getItem('backgroundBlur') || '0');
+            if (savedBlur > 0) {
+                this.backgroundTile.setAlpha(1 - savedBlur * 0.5);
+                this.backgroundTile.setTint(0x888888 + Math.floor(0x777777 * (1 - savedBlur)));
+            }
+        }
+        
+        // Убираем градиент внизу по просьбе пользователя - он мешает
         
         // Убрали старый прямоугольный туман - теперь только красивый облачный
         
@@ -286,16 +357,16 @@ export class GameScene extends Phaser.Scene {
             }
         }
         
-        // Лава (единый большой объект полностью закрывающий землю)
+        // Лава (заполняет всю глубину до земли)
         const lavaX = 1550; // Центральная позиция лавы
-        const lava = this.hazards.create(lavaX, 687, 'lava');
-        lava.setScale(3.5, 3.5); // Увеличиваем и ширину и высоту для полного покрытия
-        lava.setOrigin(0.5, 0.5); // Якорь по центру
+        const lava = this.hazards.create(lavaX, 850, 'lava'); // Позиционируем лаву так, чтобы её верхний край был на уровне земли
+        lava.setScale(4, 8); // Значительно увеличиваем высоту для заполнения всей глубины до земли
+        lava.setOrigin(0.5, 0.9); // Якорь почти в самом низу для правильного позиционирования
         
-        // Расширяем хитбокс лавы для правильного урона
+        // Настраиваем хитбокс лавы для правильного обнаружения коллизий
         const body = lava.body as Phaser.Physics.Arcade.Body;
-        body.setSize(300, 40); // Широкий хитбокс на всю зону лавы
-        body.setOffset(-150, -40); // Центрируем хитбокс
+        body.setSize(400, 240); // Широкий хитбокс на всю высоту лавы
+        body.setOffset(-200, -220); // Смещаем хитбокс чтобы покрыть всю видимую область лавы
         
         // Убираем прозрачность, добавляем пульсацию яркости
         lava.setAlpha(1); // Полная непрозрачность
@@ -537,9 +608,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupCamera(): void {
-        this.cameras.main.setBounds(0, 0, 5000, 720);
+        // Получаем высоту экрана
+        const screenHeight = this.scale.height;
+        
+        // Устанавливаем границы камеры так, чтобы уровень был прижат к низу
+        // Высота игрового мира остаётся 720, но камера видит только нижнюю часть
+        this.cameras.main.setBounds(0, 720 - screenHeight, 5000, screenHeight);
         this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1);
         this.cameras.main.setZoom(1);
+        
+        // Центрируем камеру по вертикали на уровне
+        this.cameras.main.centerOn(this.player.sprite.x, 720 - screenHeight/2);
     }
 
     private setupKeyboardControls(): void {
@@ -619,6 +698,9 @@ export class GameScene extends Phaser.Scene {
                 
                 // Задержка после перемещения камеры перед появлением портала
                 this.time.delayedCall(1200, () => {
+                    // Звук открытия портала для респавна
+                    this.soundSystem.playSound('portal', { volume: 0.5 });
+                    
                     // Создаём портал респавна немного выше персонажа
                     const respawnPortal = this.portalSystem.createPortal(
                         this.checkpointX, 
@@ -664,6 +746,9 @@ export class GameScene extends Phaser.Scene {
                                     // Появляется игрок
                                     this.player.respawn(this.checkpointX, this.checkpointY);
                                     
+                                    // Звук выхода из портала
+                                    this.soundSystem.playSound('powerup', { volume: 0.4 });
+                                    
                                     // Восстанавливаем слежение камеры за игроком
                                     this.cameras.main.startFollow(this.player.sprite);
                                     
@@ -689,6 +774,9 @@ export class GameScene extends Phaser.Scene {
         this.score += GameConfig.COIN_VALUE;
         this.updateScore();
         
+        // Воспроизводим звук сбора монеты
+        this.soundSystem.playSound('coin');
+        
         // Эффект сбора
         this.tweens.add({
             targets: coin,
@@ -702,6 +790,9 @@ export class GameScene extends Phaser.Scene {
     private collectPowerUp(powerUp: PowerUp): void {
         powerUp.collect();
         this.player.applyPowerUp(powerUp.type);
+        
+        // Воспроизводим звук PowerUp
+        this.soundSystem.playSound('powerup');
         
         // Обновляем UI
         this.events.emit('powerup-collected', powerUp.type);
@@ -803,91 +894,24 @@ export class GameScene extends Phaser.Scene {
     }
     
     private victory(): void {
+        // Останавливаем игру
         this.scene.pause();
         
-        // Красивый экран победы
-        const victoryBg = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.8);
-        victoryBg.setScrollFactor(0);
+        // Останавливаем музыку
+        this.soundSystem.stopMusic();
         
-        // Звёзды
-        for (let i = 0; i < 50; i++) {
-            const star = this.add.circle(
-                Math.random() * 1280,
-                Math.random() * 720,
-                Math.random() * 3,
-                0xffff00,
-                Math.random()
-            );
-            star.setScrollFactor(0);
-            
-            this.tweens.add({
-                targets: star,
-                alpha: 0,
-                duration: 1000 + Math.random() * 2000,
-                yoyo: true,
-                repeat: -1
-            });
-        }
-        
-        // Заголовок победы
-        const victoryText = this.add.text(640, 200, 'ПОБЕДА!', {
-            fontSize: '96px',
-            fontFamily: 'Arial Black',
-            color: '#ffd700',
-            stroke: '#ff6600',
-            strokeThickness: 8,
-            shadow: {
-                offsetX: 5,
-                offsetY: 5,
-                color: '#000000',
-                blur: 10,
-                fill: true
-            }
-        });
-        victoryText.setOrigin(0.5);
-        victoryText.setScrollFactor(0);
-        
-        // Очки
-        const scoreText = this.add.text(640, 320, `Очки: ${this.score}`, {
-            fontSize: '48px',
-            fontFamily: 'Arial',
-            color: '#ffffff'
-        });
-        scoreText.setOrigin(0.5);
-        scoreText.setScrollFactor(0);
-        
-        // Кнопка продолжения
-        const continueBtn = this.add.graphics();
-        continueBtn.fillStyle(0x27ae60, 1);
-        continueBtn.fillRoundedRect(520, 400, 240, 60, 20);
-        continueBtn.setScrollFactor(0);
-        
-        const continueText = this.add.text(640, 430, 'Продолжить', {
-            fontSize: '32px',
-            fontFamily: 'Arial Black',
-            color: '#ffffff'
-        });
-        continueText.setOrigin(0.5);
-        continueText.setScrollFactor(0);
-        
-        // Анимация появления
-        this.tweens.add({
-            targets: [victoryText, scoreText],
-            scale: { from: 0, to: 1 },
-            duration: 1000,
-            ease: 'Bounce.out'
-        });
-        
+        // Эмитим событие победы для UIScene
         this.events.emit('victory', this.score);
-        
-        this.time.delayedCall(5000, () => {
-            this.scene.stop('UIScene');
-            this.scene.start('MenuScene');
-        });
     }
 
     update(time: number, delta: number): void {
         if (!this.isPaused) {
+            // Параллакс эффект для фона
+            if (this.backgroundTile && this.cameras.main) {
+                // Фон двигается медленнее камеры для эффекта глубины
+                this.backgroundTile.tilePositionX = this.cameras.main.scrollX * 0.3;
+            }
+            
             // Обновляем игрока
             this.player.update(delta);
             
@@ -922,6 +946,40 @@ export class GameScene extends Phaser.Scene {
             }
             
             // Проверяем победу - теперь через коллизию с финишем
+        }
+    }
+    
+    private handleResize(gameSize: Phaser.Structs.Size): void {
+        // Проверяем, что сцена активна и камера существует
+        if (!this.cameras || !this.cameras.main) {
+            return;
+        }
+        
+        // Обновляем камеру при изменении размера экрана
+        const { width, height } = gameSize;
+        
+        // Обновляем границы камеры чтобы игра была прижата к низу
+        this.cameras.main.setViewport(0, 0, width, height);
+        this.cameras.main.setBounds(0, 720 - height, 5000, height);
+        
+        // Центрируем камеру на текущей позиции игрока по вертикали
+        if (this.player && this.player.sprite) {
+            const playerY = Math.max(720 - height/2, Math.min(this.player.sprite.y, 720 - height/2));
+            this.cameras.main.centerOn(this.player.sprite.x, playerY);
+        }
+        
+        // При изменении размера окна TileSprite автоматически адаптируется
+        // Не нужно менять масштаб - сохраняем качество изображения
+        if (this.backgroundTile) {
+            // TileSprite повторяется автоматически без потери качества
+        }
+        
+        // Если есть UI Scene, обновляем её тоже
+        if (this.uiScene) {
+            const uiScene = this.scene.get('UIScene');
+            if (uiScene) {
+                // UI Scene автоматически обновится через свой обработчик
+            }
         }
     }
 }

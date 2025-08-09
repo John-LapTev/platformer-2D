@@ -15,18 +15,26 @@ window.addEventListener('load', () => {
     }
 });
 
-// Конфигурация Phaser
+// Конфигурация Phaser для полноэкранного режима
 const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: 'game-container',
-    width: GameConfig.WIDTH,
-    height: GameConfig.HEIGHT,
+    width: window.innerWidth,
+    height: window.innerHeight,
     backgroundColor: '#2c3e50',
     scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: GameConfig.WIDTH,
-        height: GameConfig.HEIGHT
+        mode: Phaser.Scale.RESIZE, // Автоматическая адаптация к размеру окна
+        autoCenter: Phaser.Scale.NO_CENTER, // Без центрирования
+        width: window.innerWidth,
+        height: window.innerHeight,
+        min: {
+            width: 320,
+            height: 240
+        },
+        max: {
+            width: 3840,
+            height: 2160
+        }
     },
     physics: {
         default: 'arcade',
@@ -58,17 +66,8 @@ const config: Phaser.Types.Core.GameConfig = {
 // Создаём игру
 const game = new Phaser.Game(config);
 
-// Обработка изменения размера окна
-window.addEventListener('resize', () => {
-    game.scale.refresh();
-});
-
-// Обработка ориентации устройства
-window.addEventListener('orientationchange', () => {
-    setTimeout(() => {
-        game.scale.refresh();
-    }, 100);
-});
+// Phaser.Scale.RESIZE сам обрабатывает изменение размера окна
+// Дополнительные обработчики не нужны
 
 // Экспортируем игру для отладки
 if ((import.meta as any).env?.DEV) {
