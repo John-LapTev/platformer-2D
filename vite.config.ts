@@ -31,7 +31,23 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
-    host: true
+    host: true,
+    hmr: {
+      clientPort: 443
+    },
+    proxy: {},
+    cors: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+    // Разрешаем все хосты для туннелей
+    allowedHosts: [
+      '.loca.lt',
+      '.localhost',
+      'localhost',
+      '.ngrok.io',
+      '.ngrok-free.app'
+    ]
   },
   build: {
     target: 'esnext',

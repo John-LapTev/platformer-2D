@@ -842,52 +842,62 @@ export class GameScene extends Phaser.Scene {
     }
 
     private createFinish(): void {
-        // Флаг на финише
-        const flagPole = this.add.rectangle(4800, 600, 10, 200, 0x8b4513);
-        const flag = this.add.graphics();
-        flag.fillStyle(0xff0000, 1);
-        flag.fillTriangle(4810, 420, 4810, 470, 4870, 445);
+        // ===== ВХОД В ОГНЕННУЮ ПЕЩЕРУ (ФИНИШ УРОВНЯ) =====
+        const caveX = 4850;
+        const caveY = 800; // Ставим прямо на платформу (700 - 65 для основания)
+        const caveScale = 0.5; // Увеличиваем размер
         
-        // Замок в конце уровня
-        const castle = this.add.graphics();
-        castle.fillStyle(0x666666, 1);
-        castle.fillRect(4900, 550, 150, 150);
-        castle.fillStyle(0x888888, 1);
-        castle.fillRect(4920, 500, 30, 50);
-        castle.fillRect(4950, 500, 30, 50);
-        castle.fillRect(4980, 500, 30, 50);
-        castle.fillRect(5010, 500, 30, 50);
+        // Добавляем изображение пещеры
+        const caveEntrance = this.add.image(caveX, caveY, 'fire-cave-entrance');
+        caveEntrance.setScale(caveScale);
+        caveEntrance.setOrigin(0.5, 1); // Якорь снизу по центру - пещера стоит на платформе
+        caveEntrance.setDepth(1); // Позади игрока, чтобы он мог зайти внутрь
         
-        // Текст финиша
-        const finishText = this.add.text(4800, 380, 'ФИНИШ!', {
-            fontSize: '48px',
-            fontFamily: 'Arial Black',
-            color: '#ffff00',
-            stroke: '#ff0000',
-            strokeThickness: 6
-        });
-        finishText.setOrigin(0.5);
+        // Добавляем свечение изнутри пещеры (корректируем позицию для новой высоты)
+        const glowLight = this.add.pointlight(caveX - 50, caveY - 120, 0xff6600, 200, 0.7, 0.1);
         
-        // Анимация флага
+        // Анимация мерцания света
         this.tweens.add({
-            targets: flag,
-            x: 5,
+            targets: glowLight,
+            intensity: 1,
+            radius: 250,
             duration: 2000,
             yoyo: true,
             repeat: -1,
-            ease: 'Sine.inOut'
+            ease: 'Sine.easeInOut'
         });
         
-        // Коллизия с финишем
+        // Эффект дыма из пещеры (корректируем позицию)
+        const smokeParticles = this.add.particles(caveX - 50, caveY - 140, 'particle', {
+            color: [0x666666, 0x999999, 0xbbbbbb],
+            colorEase: 'quad.out',
+            lifespan: 3000,
+            scale: { start: 0.3, end: 1 },
+            alpha: { start: 0.3, end: 0 },
+            speed: { min: 20, max: 40 },
+            angle: { min: -100, max: -80 },
+            quantity: 1,
+            frequency: 500,
+            blendMode: Phaser.BlendModes.NORMAL
+        });
+        smokeParticles.setDepth(0); // За всем, чтобы не мешал
+        
+        // Создаём зону входа в пещеру (делаем её внутри пещеры)
         const finishZone = this.physics.add.staticGroup();
-        const finishTrigger = finishZone.create(4850, 600, undefined);
-        finishTrigger.setSize(100, 200);
+        const finishTrigger = finishZone.create(caveX - 40, caveY - 80, undefined); // Позиция внутри входа в пещеру
+        finishTrigger.setSize(60, 100); // Размер триггера
         finishTrigger.setVisible(false);
         
+        // Обработчик завершения уровня - срабатывает когда игрок заходит внутрь пещеры
         this.physics.add.overlap(
             this.player.sprite,
             finishTrigger,
-            () => this.victory(),
+            () => {
+                // Проверяем, что игрок действительно зашёл в пещеру (движется влево)
+                if (this.player && this.player.sprite.x > caveX - 70 && this.player.sprite.x < caveX + 10) {
+                    this.victory();
+                }
+            },
             undefined,
             this
         );

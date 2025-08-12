@@ -46,7 +46,7 @@ export class SoundSystem {
             ['death', 70],        // Смерть игрока - громко
             
             // Звуки сбора
-            ['coin', 35],         // Монеты - приятно
+            ['coin', 15],         // Монеты - тихо (15%)
             ['powerup', 55],      // Усиления - заметно
             
             // Звуки врагов  
@@ -220,8 +220,8 @@ export class SoundSystem {
         this.saveSettings();
     }
     
-    public getIndividualVolume(soundKey: string): number {
-        return this.individualVolumes.get(soundKey) ?? 50;
+    public getIndividualVolume(soundKey: string, defaultVolume: number = 50): number {
+        return this.individualVolumes.get(soundKey) ?? defaultVolume;
     }
     
     public getAllIndividualVolumes(): Map<string, number> {

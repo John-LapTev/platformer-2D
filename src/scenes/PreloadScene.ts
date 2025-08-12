@@ -88,6 +88,7 @@ export class PreloadScene extends Phaser.Scene {
         this.load.image('background-panorama', '/sprites/background_panorama_optimized.jpg');
         this.load.image('platform-texture', '/sprites/platform.jpg');
         this.load.image('enemy-sprite', '/sprites/enemy.jpg');
+        this.load.image('fire-cave-entrance', '/assets/backgrounds/cave-transparent.png'); // Вход в огненную пещеру с прозрачным фоном!
         
         // Генерируем дополнительные спрайты программно
         this.generateSprites();

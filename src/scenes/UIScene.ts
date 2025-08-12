@@ -641,29 +641,17 @@ export class UIScene extends Phaser.Scene {
     }
 
     private startPowerUpTimer(type: string): void {
-        // Удаляем старую иконку если есть
+        // Удаляем старую иконку если есть (для обновления таймера)
         if (this.powerUpIcons.has(type)) {
             const oldIcon = this.powerUpIcons.get(type);
             oldIcon?.destroy();
             this.powerUpIcons.delete(type);
         }
         
-        // Рассчитываем позицию для иконки
+        // Создаём контейнер для power-up (сначала создаём в центре экрана)
         const { width } = this.scale;
-        const iconSpacing = 70;
-        const totalIcons = this.powerUpIcons.size + 1; // +1 для новой иконки
-        const startX = width / 2 - ((totalIcons - 1) * iconSpacing) / 2;
         const centerY = 40;
-        
-        // Перепозиционируем существующие иконки
-        let index = 0;
-        this.powerUpIcons.forEach((icon) => {
-            icon.x = startX + index * iconSpacing;
-            index++;
-        });
-        
-        // Создаём контейнер для power-up
-        const container = this.add.container(startX + index * iconSpacing, centerY);
+        const container = this.add.container(width / 2, centerY);
         container.setScrollFactor(0);
         
         // Фон для иконки
@@ -688,7 +676,12 @@ export class UIScene extends Phaser.Scene {
         timerText.setOrigin(0.5);
         
         container.add([bg, icon, timerText]);
+        
+        // Добавляем в Map
         this.powerUpIcons.set(type, container);
+        
+        // Перепозиционируем все иконки после добавления новой
+        this.repositionPowerUpIcons();
         
         // Анимация появления
         container.setScale(0);

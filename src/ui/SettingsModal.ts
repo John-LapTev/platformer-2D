@@ -930,7 +930,7 @@ export class SettingsModal extends Phaser.GameObjects.Container {
     }
 
     // Старый метод для обратной совместимости
-    private createProfessionalSlider(container: Phaser.GameObjects.Container, x: number, y: number, width: number): void {
+    private createSimpleSliderWithGrid(container: Phaser.GameObjects.Container, x: number, y: number, width: number): void {
         // Используем новый динамический метод с вычисленной позицией для значения
         const valueX = x + width/2 + 25;
         this.createProfessionalSliderGrid(container, x, y, width, valueX);
@@ -1029,10 +1029,27 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         // Контейнер для слайдера
         this.lobbyMusicSlider = this.scene.add.container(100, y);
         
-        // Линия слайдера
+        // Линия слайдера (интерактивная)
         const track = this.scene.add.graphics();
         track.fillStyle(0x555555, 1);
         track.fillRoundedRect(-150, -5, 300, 10, 5);
+        // Делаем трек интерактивным для быстрого перемещения
+        track.setInteractive(new Phaser.Geom.Rectangle(-150, -5, 300, 10), Phaser.Geom.Rectangle.Contains);
+        track.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            const localPoint = this.lobbyMusicSlider.getLocalPoint(pointer.x, pointer.y);
+            const clampedX = Phaser.Math.Clamp(localPoint.x, -150, 150);
+            handle.x = clampedX;
+            const volume = (clampedX + 150) / 300;
+            localStorage.setItem('lobbyMusicVolume', volume.toString());
+            const menuScene = this.scene.scene.get('MenuScene');
+            if (menuScene && menuScene.scene.isActive()) {
+                this.soundSystem.setMusicVolume(volume);
+            }
+            fill.clear();
+            fill.fillStyle(0x00ff00, 1);
+            fill.fillRoundedRect(-150, -5, 300 * volume, 10, 5);
+            percent.setText(`${Math.round(volume * 100)}%`);
+        });
         this.lobbyMusicSlider.add(track);
         
         // Заполненная часть
@@ -1045,8 +1062,15 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         
         // Ползунок
         const handle = this.scene.add.circle(-150 + 300 * lobbyVolume, 0, 15, 0xffffff);
-        handle.setInteractive({ useHandCursor: true, draggable: true });
+        // Увеличиваем область захвата для удобства
+        handle.setInteractive({ 
+            hitArea: new Phaser.Geom.Circle(0, 0, 25),
+            hitAreaCallback: Phaser.Geom.Circle.Contains,
+            useHandCursor: true, 
+            draggable: true 
+        });
         handle.name = 'handle';
+        handle.setDepth(10); // Поднимаем над другими элементами
         this.lobbyMusicSlider.add(handle);
         
         // Процент
@@ -1059,8 +1083,10 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         this.lobbyMusicSlider.add(percent);
         
         // Обработка перетаскивания
-        handle.on('drag', (pointer: Phaser.Input.Pointer, dragX: number) => {
-            const clampedX = Phaser.Math.Clamp(dragX, -150, 150);
+        handle.on('drag', (pointer: Phaser.Input.Pointer) => {
+            // Преобразуем мировые координаты в локальные координаты слайдера
+            const localPoint = this.lobbyMusicSlider.getLocalPoint(pointer.x, pointer.y);
+            const clampedX = Phaser.Math.Clamp(localPoint.x, -150, 150);
             handle.x = clampedX;
             
             const volume = (clampedX + 150) / 300;
@@ -1094,10 +1120,27 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         // Контейнер для слайдера
         this.gameMusicSlider = this.scene.add.container(100, y);
         
-        // Линия слайдера
+        // Линия слайдера (интерактивная)
         const track = this.scene.add.graphics();
         track.fillStyle(0x555555, 1);
         track.fillRoundedRect(-150, -5, 300, 10, 5);
+        // Делаем трек интерактивным для быстрого перемещения
+        track.setInteractive(new Phaser.Geom.Rectangle(-150, -5, 300, 10), Phaser.Geom.Rectangle.Contains);
+        track.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            const localPoint = this.gameMusicSlider.getLocalPoint(pointer.x, pointer.y);
+            const clampedX = Phaser.Math.Clamp(localPoint.x, -150, 150);
+            handle.x = clampedX;
+            const volume = (clampedX + 150) / 300;
+            localStorage.setItem('gameMusicVolume', volume.toString());
+            const gameScene = this.scene.scene.get('GameScene');
+            if (gameScene && gameScene.scene.isActive()) {
+                this.soundSystem.setMusicVolume(volume);
+            }
+            fill.clear();
+            fill.fillStyle(0x00ff00, 1);
+            fill.fillRoundedRect(-150, -5, 300 * volume, 10, 5);
+            percent.setText(`${Math.round(volume * 100)}%`);
+        });
         this.gameMusicSlider.add(track);
         
         // Заполненная часть
@@ -1110,8 +1153,15 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         
         // Ползунок
         const handle = this.scene.add.circle(-150 + 300 * gameVolume, 0, 15, 0xffffff);
-        handle.setInteractive({ useHandCursor: true, draggable: true });
+        // Увеличиваем область захвата для удобства
+        handle.setInteractive({ 
+            hitArea: new Phaser.Geom.Circle(0, 0, 25),
+            hitAreaCallback: Phaser.Geom.Circle.Contains,
+            useHandCursor: true, 
+            draggable: true 
+        });
         handle.name = 'handle';
+        handle.setDepth(10); // Поднимаем над другими элементами
         this.gameMusicSlider.add(handle);
         
         // Процент
@@ -1124,8 +1174,10 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         this.gameMusicSlider.add(percent);
         
         // Обработка перетаскивания
-        handle.on('drag', (pointer: Phaser.Input.Pointer, dragX: number) => {
-            const clampedX = Phaser.Math.Clamp(dragX, -150, 150);
+        handle.on('drag', (pointer: Phaser.Input.Pointer) => {
+            // Преобразуем мировые координаты в локальные координаты слайдера
+            const localPoint = this.gameMusicSlider.getLocalPoint(pointer.x, pointer.y);
+            const clampedX = Phaser.Math.Clamp(localPoint.x, -150, 150);
             handle.x = clampedX;
             
             const volume = (clampedX + 150) / 300;
@@ -1159,10 +1211,23 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         // Контейнер для слайдера
         this.sfxVolumeSlider = this.scene.add.container(100, y);
         
-        // Линия слайдера
+        // Линия слайдера (интерактивная)
         const track = this.scene.add.graphics();
         track.fillStyle(0x555555, 1);
         track.fillRoundedRect(-150, -5, 300, 10, 5);
+        // Делаем трек интерактивным для быстрого перемещения
+        track.setInteractive(new Phaser.Geom.Rectangle(-150, -5, 300, 10), Phaser.Geom.Rectangle.Contains);
+        track.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            const localPoint = this.sfxVolumeSlider.getLocalPoint(pointer.x, pointer.y);
+            const clampedX = Phaser.Math.Clamp(localPoint.x, -150, 150);
+            handle.x = clampedX;
+            const volume = (clampedX + 150) / 300;
+            this.soundSystem.setSfxVolume(volume);
+            fill.clear();
+            fill.fillStyle(0x00ff00, 1);
+            fill.fillRoundedRect(-150, -5, 300 * volume, 10, 5);
+            percent.setText(`${Math.round(volume * 100)}%`);
+        });
         this.sfxVolumeSlider.add(track);
         
         // Заполненная часть
@@ -1175,8 +1240,15 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         
         // Ползунок
         const handle = this.scene.add.circle(-150 + 300 * sfxVolume, 0, 15, 0xffffff);
-        handle.setInteractive({ useHandCursor: true, draggable: true });
+        // Увеличиваем область захвата для удобства
+        handle.setInteractive({ 
+            hitArea: new Phaser.Geom.Circle(0, 0, 25),
+            hitAreaCallback: Phaser.Geom.Circle.Contains,
+            useHandCursor: true, 
+            draggable: true 
+        });
         handle.name = 'handle';
+        handle.setDepth(10); // Поднимаем над другими элементами
         this.sfxVolumeSlider.add(handle);
         
         // Процент
@@ -1189,8 +1261,10 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         this.sfxVolumeSlider.add(percent);
         
         // Обработка перетаскивания
-        handle.on('drag', (pointer: Phaser.Input.Pointer, dragX: number) => {
-            const clampedX = Phaser.Math.Clamp(dragX, -150, 150);
+        handle.on('drag', (pointer: Phaser.Input.Pointer) => {
+            // Преобразуем мировые координаты в локальные координаты слайдера
+            const localPoint = this.sfxVolumeSlider.getLocalPoint(pointer.x, pointer.y);
+            const clampedX = Phaser.Math.Clamp(localPoint.x, -150, 150);
             handle.x = clampedX;
             
             const volume = (clampedX + 150) / 300;
@@ -1847,6 +1921,11 @@ export class SettingsModal extends Phaser.GameObjects.Container {
     private createProfessionalSoundTab(panelWidth: number, panelHeight: number): void {
         const container = this.scene.add.container(0, 0);
         
+        // Создаём невидимую зону для отслеживания прокрутки ПЕРВОЙ, чтобы она была ПОД всеми элементами
+        const scrollZone = this.scene.add.zone(0, 0, panelWidth, panelHeight);
+        scrollZone.setInteractive();
+        container.add(scrollZone);
+        
         // Создаём прокручиваемый контейнер для содержимого
         const scrollContainer = this.scene.add.container(0, 0);
         container.add(scrollContainer);
@@ -1939,7 +2018,7 @@ export class SettingsModal extends Phaser.GameObjects.Container {
             { key: 'jump', label: '🦘 Прыжок' },
             { key: 'land', label: '👟 Приземление' },
             { key: 'footstep', label: '👣 Шаги' },
-            { key: 'coin', label: '🪙 Монеты' },
+            { key: 'coin', label: '🪙 Монеты', defaultVolume: 0.15 },
             { key: 'powerup', label: '⭐ Усиления' },
             { key: 'hurt', label: '💔 Урон игрока' },
             { key: 'death', label: '💀 Смерть игрока' },
@@ -1960,8 +2039,9 @@ export class SettingsModal extends Phaser.GameObjects.Container {
             label.setOrigin(0, 0.5);
             scrollContainer.add(label);
             
-            // Слайдер для звука
-            const volume = this.soundSystem.getIndividualVolume(sound.key) / 100; // Преобразуем из 0-100 в 0-1
+            // Слайдер для звука (используем дефолтную громкость если указана)
+            const defaultVolume = sound.defaultVolume !== undefined ? sound.defaultVolume * 100 : 100;
+            const volume = this.soundSystem.getIndividualVolume(sound.key, defaultVolume) / 100; // Преобразуем из 0-100 в 0-1
             this.createSimpleSlider(scrollContainer, 50, currentY, 180, volume, (value) => {
                 this.soundSystem.setIndividualVolume(sound.key, value * 100); // Преобразуем обратно в 0-100
                 
@@ -1982,11 +2062,6 @@ export class SettingsModal extends Phaser.GameObjects.Container {
         // Вычисляем общую высоту содержимого для прокрутки
         const totalContentHeight = currentY - viewportTop + 50; // Высота от начала до конца содержимого
         minScroll = Math.min(0, viewportHeight - totalContentHeight);
-        
-        // Создаём невидимую зону для отслеживания прокрутки
-        const scrollZone = this.scene.add.zone(0, 0, panelWidth, panelHeight);
-        scrollZone.setInteractive();
-        container.add(scrollZone);
         
         // Добавляем обработку прокрутки ТОЛЬКО когда мышь над панелью
         scrollZone.on('wheel', (pointer: Phaser.Input.Pointer, deltaX: number, deltaY: number, deltaZ: number) => {
